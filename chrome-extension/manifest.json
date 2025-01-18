@@ -1,15 +1,10 @@
 {
-  "name": "Live Video Fact Checker",
-  "version": "1.0",
-  "description": "Overlays fact-check information on YouTube videos",
   "manifest_version": 3,
-  "permissions": ["scripting", "activeTab"],
-  "host_permissions": ["*://www.youtube.com/*"],
-  "content_scripts": [
-    {
-      "matches": ["*://www.youtube.com/*"],
-      "js": ["contentScript.js"],
-      "css": ["styles.css"]
-    }
-  ]
+  "name": "Sample Chrome Extension",
+  "version": "1.0",
+  "description": "A simple Chrome extension example",
+  "action": {
+    "default_popup": "popup.html"
+  },
+  "permissions": []
 }
