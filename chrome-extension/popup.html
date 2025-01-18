@@ -21,12 +21,20 @@
     button:hover {
       background-color: #45a049;
     }
+    #messageDisplay {
+      margin-top: 10px;
+      padding: 10px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      background-color: #f9f9f9;
+    }
   </style>
 </head>
 <body>
   <h2>Sample Chrome Extension</h2>
   <p id="currentTime"></p>
   <button id="greetButton">Click Me!</button>
+  <div id="messageDisplay">Waiting for message from backend...</div>
   <script src="popup.js"></script>
 </body>
 </html>
