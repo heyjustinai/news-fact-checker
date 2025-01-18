@@ -2,9 +2,10 @@ let overlay = null;
 let timestamps = {};
 let videoTimeCheckInterval = null;
 let tickMarks = [];
+let observer = null;
 
 function createOverlay() {
-    if (!overlay) {
+    if (!overlay && document.body) {
         overlay = document.createElement('div');
         overlay.id = 'youtube-timestamp-overlay';
         overlay.style.cssText = `
@@ -29,12 +30,16 @@ function createOverlay() {
 
 function updateOverlay(text) {
     const overlay = createOverlay();
+    if (!overlay) return;
+    
     overlay.textContent = text;
     overlay.style.opacity = '1';
     
     // Hide overlay after 5 seconds
     setTimeout(() => {
-        overlay.style.opacity = '0';
+        if (overlay) {
+            overlay.style.opacity = '0';
+        }
     }, 5000);
 }
 
@@ -57,7 +62,11 @@ function createTickMark(percent) {
 
 function updateTickMarks() {
     // Remove existing tick marks
-    tickMarks.forEach(tick => tick.remove());
+    tickMarks.forEach(tick => {
+        if (tick && tick.parentNode) {
+            tick.remove();
+        }
+    });
     tickMarks = [];
 
     const progressBar = document.querySelector('.ytp-progress-bar');
@@ -99,8 +108,35 @@ function startVideoTimeCheck() {
     videoTimeCheckInterval = setInterval(checkVideoTime, 1000);
 }
 
-// Add styles to the page
+function initializeObserver() {
+    if (observer) {
+        observer.disconnect();
+    }
+
+    observer = new MutationObserver(() => {
+        if (!document.body) return;
+        
+        const player = document.querySelector('.html5-video-player');
+        if (player && overlay) {
+            overlay.style.bottom = `${80}px`;
+            overlay.style.right = `${20}px`;
+        }
+        updateTickMarks();
+    });
+
+    // Make sure document.body exists before observing
+    if (document.body) {
+        observer.observe(document.body, {
+            childList: true,
+            subtree: true,
+            attributes: true
+        });
+    }
+}
+
 function addStyles() {
+    if (!document.head) return;
+    
     const style = document.createElement('style');
     style.textContent = `
         .timestamp-tick {
@@ -117,66 +153,91 @@ function addStyles() {
     document.head.appendChild(style);
 }
 
+function waitForElement(selector, callback, maxAttempts = 10) {
+    let attempts = 0;
+    
+    function check() {
+        const element = document.querySelector(selector);
+        if (element) {
+            callback(element);
+            return;
+        }
+        
+        attempts++;
+        if (attempts < maxAttempts) {
+            setTimeout(check, 500);
+        }
+    }
+    
+    check();
+}
+
+function initialize() {
+    // Wait for document.body
+    if (!document.body) {
+        setTimeout(initialize, 100);
+        return;
+    }
+
+    // Initialize components
+    createOverlay();
+    addStyles();
+    initializeObserver();
+    
+    // Wait for video player
+    waitForElement('video', () => {
+        startVideoTimeCheck();
+        updateTickMarks();
+    });
+}
+
 // Listen for messages from the popup
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     console.log("Message received in content script:", request);
     
     if (request.action === "test") {
-        // Respond to test message to confirm content script is loaded
         sendResponse({ status: "content_script_ready" });
-        return true;
+        return false;
     }
     
     if (request.action === "updateTimestamps") {
         timestamps = request.timestamps;
         startVideoTimeCheck();
-        updateTickMarks(); // Add tick marks when timestamps are updated
+        updateTickMarks();
         sendResponse({ status: "Timestamps updated successfully" });
-        return true;
+        return false;
     }
     
     if (request.action === "updateOverlay") {
         updateOverlay(request.text);
         sendResponse({ status: "Overlay updated successfully" });
-        return true;
+        return false;
     }
     
-    return true; // Required for async response
+    return false;
 });
 
-// Initial setup when the script loads
-document.addEventListener('DOMContentLoaded', () => {
-    createOverlay();
-    startVideoTimeCheck();
-    addStyles();
-});
+// Start initialization
+initialize();
 
-// Watch for video player changes
-const observer = new MutationObserver(() => {
-    const player = document.querySelector('.html5-video-player');
-    if (player && overlay) {
-        overlay.style.bottom = `${80}px`;
-        overlay.style.right = `${20}px`;
-    }
-    
-    // Update tick marks when the video player changes
-    updateTickMarks();
-});
-
-// Start observing the document for changes
-observer.observe(document.body, {
-    childList: true,
-    subtree: true,
-    attributes: true
-});
-
-// Listen for video loading
-document.addEventListener('yt-navigate-finish', function() {
-    setTimeout(updateTickMarks, 1000); // Update tick marks after video loads
+// Listen for YouTube navigation events
+document.addEventListener('yt-navigate-finish', () => {
+    setTimeout(() => {
+        initialize();
+        updateTickMarks();
+    }, 1000);
 });
 
 // Update tick marks when the window is resized
-window.addEventListener('resize', updateTickMarks);
+window.addEventListener('resize', () => {
+    if (document.body) {
+        updateTickMarks();
+    }
+});
 
-// Update tick marks periodically to handle dynamic video loading
-setInterval(updateTickMarks, 5000);
+// Periodic check for video player and tick marks
+setInterval(() => {
+    if (document.body) {
+        updateTickMarks();
+    }
+}, 5000);

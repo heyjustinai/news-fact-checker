@@ -10,6 +10,23 @@ document.addEventListener('DOMContentLoaded', function() {
         return tab.url.includes('youtube.com');
     }
 
+    // Function to send message to content script
+    function sendMessageToContentScript(tabId, message) {
+        return new Promise((resolve, reject) => {
+            try {
+                chrome.tabs.sendMessage(tabId, message, response => {
+                    if (chrome.runtime.lastError) {
+                        reject(chrome.runtime.lastError);
+                    } else {
+                        resolve(response);
+                    }
+                });
+            } catch (error) {
+                reject(error);
+            }
+        });
+    }
+
     // Function to ensure content script is injected
     async function ensureContentScriptInjected() {
         const tabs = await chrome.tabs.query({active: true, currentWindow: true});
@@ -17,7 +34,7 @@ document.addEventListener('DOMContentLoaded', function() {
         
         try {
             // Try to send a test message
-            await chrome.tabs.sendMessage(tabs[0].id, { action: "test" });
+            await sendMessageToContentScript(tabs[0].id, { action: "test" });
             return true; // Content script is already there
         } catch (error) {
             // If we get here, the content script isn't injected
@@ -26,6 +43,8 @@ document.addEventListener('DOMContentLoaded', function() {
                     target: { tabId: tabs[0].id },
                     files: ['content.js']
                 });
+                // Wait a moment for the script to initialize
+                await new Promise(resolve => setTimeout(resolve, 100));
                 return true;
             } catch (error) {
                 console.error('Failed to inject content script:', error);
@@ -78,7 +97,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const tabs = await chrome.tabs.query({active: true, currentWindow: true});
             if (tabs[0]) {
                 try {
-                    const response = await chrome.tabs.sendMessage(tabs[0].id, {
+                    const response = await sendMessageToContentScript(tabs[0].id, {
                         action: "updateTimestamps",
                         timestamps: timestamps
                     });
