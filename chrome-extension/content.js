@@ -1,84 +1,155 @@
 let overlays = [];
+let isDragging = false;
+let currentX;
+let currentY;
+let initialX;
+let initialY;
+let xOffset = 0;
+let yOffset = 0;
 
 // Listen for messages from popup
 chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
     if (request.action === "addOverlay") {
-        const success = createOverlay(request.text, request.position);
+        const success = createOverlay(request.text);
         sendResponse({success: success});
     }
     return true;
 });
 
-function createOverlay(text, position) {
-    // Try multiple selectors for the video container
-    const video = document.querySelector('.html5-main-video, video');
-    const videoContainer = document.querySelector('.html5-video-container, .ytp-player-content');
+function removeAllOverlays() {
+    const container = document.querySelector('.youtube-overlay-container');
+    if (container) {
+        container.remove();
+    }
+    overlays = [];
+}
+
+function createOverlayContainer(player) {
+    let container = document.querySelector('.youtube-overlay-container');
     
-    if (!video || !videoContainer) {
-        console.log('Could not find video or container elements');
+    if (!container) {
+        container = document.createElement('div');
+        container.className = 'youtube-overlay-container';
+        
+        Object.assign(container.style, {
+            position: 'absolute',
+            left: '20px',
+            top: '60px',
+            bottom: '60px',
+            width: '300px',
+            backgroundColor: 'rgba(0, 0, 0, 0.25)',
+            borderRadius: '8px',
+            zIndex: '1000000',
+            overflowY: 'auto',
+            overflowX: 'hidden',
+            padding: '10px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '10px',
+            // Custom scrollbar styling
+            scrollbarWidth: 'thin',
+            scrollbarColor: 'rgba(255, 255, 255, 0.5) rgba(0, 0, 0, 0)'
+        });
+
+        // Add custom scrollbar styles for webkit browsers
+        const style = document.createElement('style');
+        style.textContent = `
+            .youtube-overlay-container::-webkit-scrollbar {
+                width: 6px;
+            }
+            .youtube-overlay-container::-webkit-scrollbar-track {
+                background: rgba(0, 0, 0, 0);
+            }
+            .youtube-overlay-container::-webkit-scrollbar-thumb {
+                background-color: rgba(255, 255, 255, 0.5);
+                border-radius: 3px;
+            }
+        `;
+        document.head.appendChild(style);
+        
+        player.appendChild(container);
+    }
+    
+    return container;
+}
+
+function createOverlay(text) {
+    const player = document.getElementById('movie_player') || document.querySelector('.html5-video-player');
+    if (!player) {
+        console.log('Could not find YouTube player');
         return false;
     }
+
+    const container = createOverlayContainer(player);
     
     const overlay = document.createElement('div');
     overlay.className = 'youtube-text-overlay';
     overlay.textContent = text;
     
-    // Enhanced styling for better visibility
-    overlay.style.position = 'absolute';
-    overlay.style.color = 'white';
-    overlay.style.padding = '10px';
-    overlay.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
-    overlay.style.borderRadius = '5px';
-    overlay.style.zIndex = '9999';
-    overlay.style.fontSize = '20px';
-    overlay.style.fontWeight = 'bold';
-    overlay.style.pointerEvents = 'none'; // Make sure overlay doesn't interfere with video controls
+    // Style similar to X-Ray entries
+    Object.assign(overlay.style, {
+        color: 'white',
+        fontSize: '14px',
+        fontFamily: 'YouTube Noto, Roboto, Arial, sans-serif',
+        fontWeight: '400',
+        backgroundColor: 'rgba(0, 0, 0, 0.4)',
+        padding: '12px',
+        borderRadius: '4px',
+        width: 'calc(100% - 24px)', // Account for padding
+        transition: 'background-color 0.2s',
+        cursor: 'default'
+    });
+
+    // Add hover effect
+    overlay.addEventListener('mouseenter', () => {
+        overlay.style.backgroundColor = 'rgba(255, 255, 255, 0.1)';
+    });
     
-    // Position the overlay based on selection
-    switch(position) {
-        case 'top':
-            overlay.style.top = '10%';
-            overlay.style.left = '50%';
-            overlay.style.transform = 'translateX(-50%)';
-            break;
-        case 'bottom':
-            overlay.style.bottom = '20%'; // Increased to avoid controls
-            overlay.style.left = '50%';
-            overlay.style.transform = 'translateX(-50%)';
-            break;
-        case 'center':
-            overlay.style.top = '50%';
-            overlay.style.left = '50%';
-            overlay.style.transform = 'translate(-50%, -50%)';
-            break;
+    overlay.addEventListener('mouseleave', () => {
+        overlay.style.backgroundColor = 'rgba(0, 0, 0, 0.4)';
+    });
+    
+    // Add new overlay at the top
+    if (container.firstChild) {
+        container.insertBefore(overlay, container.firstChild);
+    } else {
+        container.appendChild(overlay);
     }
     
-    // Add overlay to video container
-    videoContainer.appendChild(overlay);
     overlays.push(overlay);
     
-    // Log success message
-    console.log('Overlay created:', {
-        text: text,
-        position: position,
-        containerFound: !!videoContainer
-    });
+    // Scroll to top to show newest overlay
+    container.scrollTop = 0;
     
     return true;
 }
 
-// Add this to handle YouTube's dynamic page loading
+// Handle YouTube's dynamic page loading
 function initializeOverlaySystem() {
-    // Clear existing overlays when navigating to a new video
-    overlays.forEach(overlay => overlay.remove());
-    overlays = [];
+    removeAllOverlays();
 }
 
-// Watch for URL changes (YouTube is a SPA)
+// Watch for URL changes
 let lastUrl = location.href;
 new MutationObserver(() => {
     if (location.href !== lastUrl) {
         lastUrl = location.href;
         initializeOverlaySystem();
     }
-}).observe(document, {subtree: true, childList: true}); 
+}).observe(document, {subtree: true, childList: true});
+
+// Additional observer to ensure overlay container stays visible
+new MutationObserver(() => {
+    if (overlays.length > 0) {
+        const player = document.getElementById('movie_player') || document.querySelector('.html5-video-player');
+        const container = document.querySelector('.youtube-overlay-container');
+        if (!container && player) {
+            createOverlayContainer(player);
+            overlays.forEach(overlay => {
+                if (!overlay.parentElement) {
+                    container.appendChild(overlay);
+                }
+            });
+        }
+    }
+}).observe(document.body, {childList: true, subtree: true}); 

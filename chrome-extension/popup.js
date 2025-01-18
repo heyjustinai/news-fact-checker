@@ -2,7 +2,6 @@ document.addEventListener('DOMContentLoaded', function() {
     // Get reference to form elements
     const overlayForm = document.getElementById('overlayForm');
     const textInput = document.getElementById('overlayText');
-    const positionSelect = document.getElementById('position');
     const statusMessage = document.createElement('div');
     statusMessage.style.marginTop = '10px';
     document.body.appendChild(statusMessage);
@@ -23,8 +22,7 @@ document.addEventListener('DOMContentLoaded', function() {
         
         const overlayData = {
             action: "addOverlay",
-            text: textInput.value,
-            position: positionSelect.value
+            text: textInput.value
         };
         
         chrome.tabs.query({active: true, currentWindow: true}, function(tabs) {
