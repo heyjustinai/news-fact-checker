@@ -1,10 +1,23 @@
 {
   "manifest_version": 3,
-  "name": "Sample Chrome Extension",
+  "name": "YouTube Text Overlay",
   "version": "1.0",
-  "description": "A simple Chrome extension example",
+  "description": "Add text overlays to YouTube videos",
+  "permissions": [
+    "activeTab",
+    "tabs"
+  ],
+  "host_permissions": [
+    "*://*.youtube.com/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": ["*://*.youtube.com/*"],
+      "js": ["content.js"],
+      "run_at": "document_end"
+    }
+  ],
   "action": {
     "default_popup": "popup.html"
-  },
-  "permissions": []
+  }
 }
