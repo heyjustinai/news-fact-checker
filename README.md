@@ -2,6 +2,13 @@
 
 A Chrome extension that provides real-time fact-checking for YouTube videos. This tool helps viewers verify information by displaying fact-check notifications at specific timestamps throughout the video.
 
+## Authors
+
+- Adam Czyzewski ([Twitter](https://x.com/AdamCzyzewski1), [LinkedIn](https://www.linkedin.com/in/czyzewski-a/))
+- Ayush Khandelwal ([Twitter](https://x.com/ayushkhd), [LinkedIn](https://www.linkedin.com/in/ayushkhd/))
+- Justin Lee ([Twitter](https://x.com/heyjustinai), [LinkedIn](https://www.linkedin.com/in/heyjustinai/))
+- Marissa Li ([Twitter](https://x.com/marissali_), [LinkedIn](https://www.linkedin.com/in/marissa-li314/))
+
 ## Features
 
 - 🎯 Real-time fact checking as you watch
@@ -115,8 +122,3 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 - Chrome Extension documentation
 - Flask documentation
 - All contributors and testers
-
-## Contact
-
-Your Name - your.email@example.com
-Project Link: https://github.com/yourusername/youtube-fact-checker
