@@ -1,22 +1,36 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Sample Extension</title>
+  <title>News Fact Checker</title>
   <style>
     body {
       width: 300px;
-      padding: 10px;
+      padding: 15px;
       font-family: Arial, sans-serif;
+      background-color: #f8f9fa;
+    }
+    h2 {
+      margin: 0 0 15px 0;
+      color: #1a1a1a;
+      font-size: 18px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
     }
     button {
       width: 100%;
-      padding: 8px;
+      padding: 10px;
       margin: 5px 0;
       background-color: #4CAF50;
       color: white;
       border: none;
       border-radius: 4px;
       cursor: pointer;
+      font-weight: bold;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
     }
     button:hover {
       background-color: #45a049;
@@ -24,17 +38,17 @@
     #messageDisplay {
       margin-top: 10px;
       padding: 10px;
-      border: 1px solid #ddd;
       border-radius: 4px;
-      background-color: #f9f9f9;
+      background-color: white;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      min-height: 20px;
     }
   </style>
 </head>
 <body>
-  <h2>Sample Chrome Extension</h2>
-  <p id="currentTime"></p>
-  <button id="greetButton">Click Me!</button>
-  <div id="messageDisplay">Waiting for message from backend...</div>
+  <h2>📰 News Fact Checker</h2>
+  <button id="checkFactsButton">🔍 Check Video Facts</button>
+  <div id="messageDisplay">Open a YouTube video to start fact-checking</div>
   <script src="popup.js"></script>
 </body>
 </html>

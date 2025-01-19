@@ -1,9 +1,10 @@
 import json
 import logging
-from flask import Flask, jsonify
+from flask import Flask, jsonify, request
 from flask_cors import CORS
 import yt_dlp
 import os
+from dotenv import load_dotenv
 import time
 from typing import List, Dict
 from google import genai
@@ -26,8 +27,12 @@ logger = logging.getLogger(__name__)
 app = Flask(__name__)
 CORS(app)
 
+# Load environment variables
+load_dotenv()
+API_KEY = os.getenv('GEMINI_API_KEY')
+if not API_KEY:
+    raise ValueError("GEMINI_API_KEY not found in .env file")
 
-API_KEY = "YOUR_API_KEY"
 MODEL_ID = "gemini-2.0-flash-exp"
 
 client = genai.Client(api_key=API_KEY)
@@ -43,33 +48,37 @@ def get_video_json_path(video_url):
 
 
 def download_youtube_video(video_url: str, save_path: str):
-    ydl_opts = {"outtmpl": save_path, "format": "mp4"}
-    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        ydl.download([video_url])
-    logger.info("Video downloaded successfully!")
-
-
-def upload_video(file_path: str, video_url: str):
-    logger.info("Uploading video file to Gemini API...")
-    file_upload = client.files.upload(path=file_path)
-
-    while file_upload.state == "PROCESSING":
-        logger.info("Waiting for video to be processed...")
-        time.sleep(3)
-        file_upload = client.files.get(name=file_upload.name)
-
-    if file_upload.state == "FAILED":
-        raise ValueError(f"File upload failed: {file_upload.state}")
-
-    logger.info(f"Video processing complete: {file_upload.uri}")
-    metadata = {
-        "uri": file_upload.uri,
-        "mime_type": file_upload.mime_type,
+    ydl_opts = {
+        "outtmpl": save_path,
+        "format": "worst",  # Use lowest quality to speed up download
+        "quiet": False,
+        "no_warnings": False,
+        "extract_flat": True,
+        "youtube_include_dash_manifest": False,
+        "youtube_include_hls_manifest": False,
+        "retries": 10,
+        "fragment_retries": 10,
+        "skip_download": False,
+        "writesubtitles": False,
+        "writeautomaticsub": False,
+        "verbose": True,
+        "cookiefile": "youtube.com_cookies.txt"  # Optional: Add cookies if needed
     }
-    with open(get_video_json_path(video_url=video_url), "w") as f:
-        json.dump(metadata, f)
-
-    return metadata
+    try:
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            logger.info(f"Attempting to download video: {video_url}")
+            info = ydl.extract_info(video_url, download=True)
+            logger.info("Video downloaded successfully!")
+            return info
+    except Exception as e:
+        error_msg = str(e)
+        logger.error(f"Error downloading video: {error_msg}")
+        if "HTTP Error 403" in error_msg:
+            raise ValueError("Access to YouTube video is forbidden. This might be due to rate limiting or video restrictions.")
+        elif "HTTP Error 400" in error_msg:
+            raise ValueError("Invalid YouTube video URL or API error. Please try again later.")
+        else:
+            raise ValueError(f"Failed to download video: {error_msg}")
 
 
 # Step 2: Extract claims from the video
@@ -160,7 +169,41 @@ def get_fact_checked_timestamps(video_uri: str) -> dict:
     return fact_check_results
 
 
-@app.route("/api/timestamps", methods=["GET"])
+@app.route("/api/timestamps", methods=["POST"])
+def get_fact_check_timestamps():
+    try:
+        # Get video URL from request
+        data = request.get_json()
+        if not data or 'video_url' not in data:
+            return jsonify({"error": "Missing video_url parameter"}), 400
+            
+        video_url = data['video_url']
+        if not video_url.startswith('https://www.youtube.com/'):
+            return jsonify({"error": "Invalid YouTube URL"}), 400
+
+        try:
+            # Process video and get timestamps
+            timestamps = get_fact_checked_timestamps(video_url)
+            
+            # Check for errors in the response
+            if isinstance(timestamps, dict) and 'error' in timestamps:
+                return jsonify(timestamps), 500
+
+            return jsonify(timestamps), 200
+
+        except ValueError as ve:
+            # Handle specific errors from video download
+            return jsonify({"error": str(ve)}), 400
+        except Exception as e:
+            logger.error(f"Error processing video: {str(e)}")
+            return jsonify({"error": f"Failed to process video: {str(e)}"}), 500
+
+    except Exception as e:
+        logger.error(f"Error processing request: {str(e)}")
+        return jsonify({"error": f"Failed to process request: {str(e)}"}), 500
+
+
+@app.route("/demo_timestamps", methods=["GET"])
 def get_timestamps():
     try:
         timestamps = {
@@ -187,6 +230,29 @@ def get_timestamps():
         return jsonify(timestamps), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+
+def upload_video(file_path: str, video_url: str):
+    logger.info("Uploading video file to Gemini API...")
+    file_upload = client.files.upload(path=file_path)
+
+    while file_upload.state == "PROCESSING":
+        logger.info("Waiting for video to be processed...")
+        time.sleep(3)
+        file_upload = client.files.get(name=file_upload.name)
+
+    if file_upload.state == "FAILED":
+        raise ValueError(f"File upload failed: {file_upload.state}")
+
+    logger.info(f"Video processing complete: {file_upload.uri}")
+    metadata = {
+        "uri": file_upload.uri,
+        "mime_type": file_upload.mime_type,
+    }
+    with open(get_video_json_path(video_url=video_url), "w") as f:
+        json.dump(metadata, f)
+
+    return metadata
 
 
 if __name__ == "__main__":

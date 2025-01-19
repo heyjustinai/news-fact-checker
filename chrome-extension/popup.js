@@ -1,8 +1,4 @@
 document.addEventListener('DOMContentLoaded', function() {
-    // Update the current time
-    const timeElement = document.getElementById('currentTime');
-    timeElement.textContent = new Date().toLocaleTimeString();
-
     // Function to check if current tab is a YouTube page
     async function isYouTubePage() {
         const tabs = await chrome.tabs.query({active: true, currentWindow: true});
@@ -53,64 +49,84 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
+    // Function to get current tab's YouTube URL
+    async function getCurrentVideoUrl() {
+        const tabs = await chrome.tabs.query({active: true, currentWindow: true});
+        const tab = tabs[0];
+        if (!tab.url.includes('youtube.com/watch?v=')) {
+            throw new Error('Not a YouTube video page');
+        }
+        return tab.url;
+    }
+
     // Function to fetch timestamps
     async function fetchTimestamps() {
         try {
-            const response = await fetch('http://127.0.0.1:5000/api/timestamps');
+            const videoUrl = await getCurrentVideoUrl();
+            const response = await fetch('http://127.0.0.1:5000/api/timestamps', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    video_url: videoUrl
+                })
+            });
+
             if (!response.ok) {
-                throw new Error('Failed to fetch timestamps');
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Failed to fetch timestamps');
             }
+
             const timestamps = await response.json();
             return timestamps;
         } catch (error) {
             console.error('Error fetching timestamps:', error);
-            return null;
+            throw error;
         }
     }
 
     // Function to call the API and get data
     async function fetchData() {
         const messageDisplay = document.getElementById('messageDisplay');
-        messageDisplay.textContent = 'Fetching data...';
+        messageDisplay.textContent = '🔄 Analyzing video...';
         
         try {
-            // First check if we're on YouTube
             if (!await isYouTubePage()) {
-                messageDisplay.textContent = 'Please open this extension on a YouTube page';
+                messageDisplay.textContent = '⚠️ Please open this extension on a YouTube video page';
                 return;
             }
 
-            // Ensure content script is injected
             if (!await ensureContentScriptInjected()) {
-                messageDisplay.textContent = 'Error: Could not inject content script';
+                messageDisplay.textContent = '❌ Error: Could not inject content script';
                 return;
             }
 
-            // Fetch timestamps
             const timestamps = await fetchTimestamps();
             if (!timestamps) {
-                messageDisplay.textContent = 'Error: Could not fetch timestamps';
+                messageDisplay.textContent = '❌ Error: Could not fetch timestamps';
                 return;
             }
 
-            // Send timestamps to content script
+            messageDisplay.textContent = '✅ Analysis complete!';
+            // displayTimestamps(timestamps); // This function is not defined in the provided code
+
             const tabs = await chrome.tabs.query({active: true, currentWindow: true});
             if (tabs[0]) {
                 try {
-                    const response = await sendMessageToContentScript(tabs[0].id, {
+                    await sendMessageToContentScript(tabs[0].id, {
                         action: "updateTimestamps",
                         timestamps: timestamps
                     });
-                    console.log('Timestamps update response:', response);
-                    messageDisplay.textContent = 'Timestamps loaded successfully';
+                    console.log('Timestamps update sent to content script');
                 } catch (error) {
                     console.error('Error updating timestamps:', error);
-                    messageDisplay.textContent = 'Error: Could not update timestamps';
+                    messageDisplay.textContent = '❌ Error: Could not update video overlay';
                 }
             }
         } catch (error) {
             console.error('There was a problem:', error);
-            messageDisplay.textContent = 'Error: ' + error.message;
+            messageDisplay.textContent = '❌ Error: ' + error.message;
         }
     }
 
@@ -118,6 +134,21 @@ document.addEventListener('DOMContentLoaded', function() {
     fetchData();
 
     // Add click event listener to the button
-    const greetButton = document.getElementById('greetButton');
-    greetButton.addEventListener('click', fetchData);
+    const checkFactsButton = document.getElementById('checkFactsButton');
+    checkFactsButton.addEventListener('click', fetchData);
+
+    // Initial check to update UI state
+    isYouTubePage().then(isYoutube => {
+        const messageDisplay = document.getElementById('messageDisplay');
+        if (!isYoutube) {
+            messageDisplay.textContent = '⚠️ Please open this extension on a YouTube video page';
+            checkFactsButton.disabled = true;
+            checkFactsButton.style.opacity = '0.5';
+        } else {
+            messageDisplay.textContent = 'Ready to check video facts';
+            checkFactsButton.disabled = false;
+            checkFactsButton.style.opacity = '1';
+        }
+    });
+
 });

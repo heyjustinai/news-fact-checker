@@ -1,1 +1,4 @@
 Flask==2.2.3
+python-dotenv==1.0.0
+pytube==15.0.0
+flask-cors==4.0.0
