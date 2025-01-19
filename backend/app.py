@@ -38,7 +38,6 @@ def demo_api():
     return jsonify({"message": "Whatsuppppppp, World!"}), 200
 
 
-@app.route("/api/timestamps")
 def get_video_json_path(video_url):
     return f"{os.getcwd()}/{video_url}.json"
 
@@ -77,12 +76,21 @@ def upload_video(file_path: str, video_url: str):
 def extract_facts(video_uri: str) -> list[dict]:
     try:
         logger.info("Generating content with Gemini API...")
-        SYSTEM_PROMPT = "When given a video and a query, call the relevant function only once with the video."
+        # SYSTEM_PROMPT = ""
         USER_PROMPT = """
+        When given a video and a query, call the relevant function only once with the video.
         Find all claims that are being made in this video. 
         Then give me only the major claims that may be facts, but not opinions and that are of importance. 
         For each such statement in the video, generate a timestamp with claim for that statement that states the statement being made.
+        
+        Additioally, for each claim, check the factual accuracy of the provided statement using web grounding. 
+        Give me in the output the sources that you used to verify the statement, 
+        a very crisp one sentence for why this is the case, and the score between 0 to 1, 
+        where 1 means it's true and 0 means it's false. Give me the sources as list with links.
         """
+
+        google_search_tool = Tool(google_search=GoogleSearch())
+
         response = client.models.generate_content(
             model=MODEL_ID,
             contents=[
@@ -95,41 +103,12 @@ def extract_facts(video_uri: str) -> list[dict]:
                 USER_PROMPT,
             ],
             config=types.GenerateContentConfig(
-                system_instruction=SYSTEM_PROMPT,
-                temperature=0.0,
-                response_mime_type="application/json",
-            ),
-        )
-        logger.info(response.text)
-        facts = json.loads(response.text)
-        return facts
-    except Exception as e:
-        logger.info(f"Error during fact extraction: {e}")
-        raise e
-
-
-def fact_check_claim(claim: str) -> dict:
-    try:
-        SYSTEM_PROMPT = """Check the factual accuracy of the provided statement using web grounding. 
-        Give me in the output the sources that you used to verify the statement, 
-        a very crisp one sentence for why this is the case, and the score between 0 to 1, 
-        where 1 means it's true and 0 means it's false."""
-
-        USER_PROMPT = f"Verify if the following claim is factually correct: '{claim}'. Give me response in clean JSON format. Don't add extra information or characters at the end of JSON."
-        google_search_tool = Tool(google_search=GoogleSearch())
-
-        response = client.models.generate_content(
-            model=MODEL_ID,
-            contents=USER_PROMPT,
-            config=GenerateContentConfig(
                 tools=[google_search_tool],
-                system_instruction=SYSTEM_PROMPT,
+                # system_instruction=SYSTEM_PROMPT,
                 temperature=0.0,
                 response_mime_type="application/json",
             ),
         )
-
-        # Get response text
         text = response.text
 
         # Find the last closing bracket "]" and slice up to it
@@ -174,17 +153,7 @@ def get_fact_checked_timestamps(video_uri: str) -> dict:
         video_uri = metadata["uri"]
         mime_type = metadata["mime_type"]
 
-    facts = extract_facts(video_uri)
-
-    # Step 3: Fact-check each claim
-    logger.info("Fact-checking claims...")
-    fact_check_results = {}
-    logger.info(facts)
-    for object in facts:
-        timestamp = object["timestamp"]
-        claim = object["claim"]
-        logger.info(f"Fact-checking claim: {claim}")
-        fact_check_results[timestamp] = fact_check_claim(claim)
+    fact_check_results = extract_facts(video_uri)
 
     # Step 4: Display fact-check results
     logger.info(json.dumps(fact_check_results, indent=4))
