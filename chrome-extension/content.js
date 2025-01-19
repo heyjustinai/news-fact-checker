@@ -45,50 +45,99 @@ function createOverlayContainer() {
     return innerContainer;
 }
 
-function updateOverlay(text) {
+function getScoreEmoji(score) {
+    score = parseFloat(score);
+    if (score >= 0.7) return '✅';
+    if (score >= 0.3) return '⚠️';
+    return '❌';
+}
+
+function formatTimeString(timeStr) {
+    return timeStr.padStart(8, '0');  // Ensure format like "00:00:01"
+}
+
+function createOverlayContent(time, claim) {
+    const scoreEmoji = getScoreEmoji(claim.score);
+    
+    let html = `
+        <div style="margin-bottom: 8px;">
+            <span style="font-weight: bold;">${scoreEmoji} ${formatTimeString(time)}</span>
+        </div>
+        <div style="margin-bottom: 8px;">
+            <span style="color: #fff;">🗣️ ${claim.statement}</span>
+        </div>
+    `;
+
+    if (claim.sources && claim.sources.length > 0) {
+        html += `
+            <div style="margin-bottom: 8px; font-size: 12px;">
+                📚 Sources:<br>
+                ${claim.sources.map(source => 
+                    `<a href="${source}" target="_blank" style="color: #3ea6ff; text-decoration: none; display: block; margin: 2px 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${source}</a>`
+                ).join('')}
+            </div>
+        `;
+    }
+
+    if (claim.accuracy || claim.reason) {
+        html += `
+            <div style="margin-bottom: 8px; font-style: italic; color: #ccc; font-size: 12px;">
+                💭 ${claim.accuracy || claim.reason}
+            </div>
+        `;
+    }
+
+    const scoreClass = parseFloat(claim.score) >= 0.7 ? '#4ade80' : 
+                      parseFloat(claim.score) >= 0.3 ? '#fbbf24' : '#ef4444';
+    
+    html += `
+        <div style="display: inline-block; padding: 4px 8px; border-radius: 12px; background-color: ${scoreClass}33; color: ${scoreClass}; font-size: 12px; font-weight: bold;">
+            Score: ${claim.score}
+        </div>
+    `;
+
+    return html;
+}
+
+function updateOverlay(time, claims) {
     const container = createOverlayContainer();
     if (!container) return;
 
-    const overlay = document.createElement('div');
-    overlay.className = 'youtube-text-overlay';
-    overlay.textContent = text;
-    
-    Object.assign(overlay.style, {
-        color: 'white',
-        fontSize: '14px',
-        fontFamily: 'YouTube Noto, Roboto, Arial, sans-serif',
-        fontWeight: '400',
-        backgroundColor: 'rgba(0, 0, 0, 0.5)',
-        padding: '12px',
-        borderRadius: '4px',
-        width: 'calc(100% - 24px)',
-        transition: 'all 0.2s ease',
-        cursor: 'default',
-        opacity: '1'
-    });
+    claims.forEach(claim => {
+        const overlay = document.createElement('div');
+        overlay.className = 'youtube-text-overlay';
+        
+        Object.assign(overlay.style, {
+            color: 'white',
+            fontSize: '14px',
+            fontFamily: 'YouTube Noto, Roboto, Arial, sans-serif',
+            fontWeight: '400',
+            backgroundColor: 'rgba(0, 0, 0, 0.7)',
+            padding: '12px',
+            borderRadius: '8px',
+            width: 'calc(100% - 24px)',
+            transition: 'all 0.2s ease',
+            cursor: 'default',
+            opacity: '1',
+            marginBottom: '8px'
+        });
 
-    overlay.addEventListener('mouseenter', () => {
-        overlay.style.backgroundColor = 'rgba(255, 255, 255, 0.15)';
+        overlay.innerHTML = createOverlayContent(time, claim);
+
+        overlay.addEventListener('mouseenter', () => {
+            overlay.style.backgroundColor = 'rgba(255, 255, 255, 0.15)';
+        });
+        
+        overlay.addEventListener('mouseleave', () => {
+            overlay.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
+        });
+        
+        container.appendChild(overlay);
+        overlays.push(overlay);
     });
-    
-    overlay.addEventListener('mouseleave', () => {
-        overlay.style.backgroundColor = 'rgba(0, 0, 0, 0.5)';
-    });
-    
-    container.appendChild(overlay);
-    overlays.push(overlay);
     
     const outerContainer = container.parentElement;
     outerContainer.scrollTop = outerContainer.scrollHeight;
-
-    // Fade out after 5 seconds
-    // setTimeout(() => {
-    //     overlay.style.opacity = '0';
-    //     setTimeout(() => {
-    //         overlay.remove();
-    //         overlays = overlays.filter(o => o !== overlay);
-    //     }, 500);
-    // }, 5000);
 }
 
 function createTickMark(percent) {
@@ -119,7 +168,7 @@ function updateTickMarks() {
     if (!video || !video.duration) return;
 
     Object.keys(timestamps).forEach(time => {
-        const timeInSeconds = parseInt(time);
+        const timeInSeconds = new Date(time).getTime() / 1000;
         const percent = (timeInSeconds / video.duration) * 100;
         const tick = createTickMark(percent);
         progressBar.appendChild(tick);
@@ -132,10 +181,13 @@ function checkVideoTime() {
     if (!video) return;
 
     const currentTime = Math.floor(video.currentTime);
-    const currentTimeStr = currentTime.toString();
-
-    if (timestamps[currentTimeStr]) {
-        updateOverlay(timestamps[currentTimeStr]);
+    
+    // Convert current time to "HH:MM:SS" format
+    const timeStr = new Date(currentTime * 1000).toISOString().substr(11, 8);
+    
+    // Check if we have any claims for this timestamp
+    if (timestamps[timeStr]) {
+        updateOverlay(timeStr, timestamps[timeStr]);
     }
 }
 
@@ -199,23 +251,12 @@ function cleanup() {
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (request.action === "test") {
         sendResponse({ status: "content_script_ready" });
-        return true;
-    }
-    
-    if (request.action === "updateTimestamps") {
+    } else if (request.action === "updateTimestamps") {
         timestamps = request.timestamps;
         startVideoTimeCheck();
         updateTickMarks();
-        sendResponse({ status: "Timestamps updated successfully" });
-        return true;
+        sendResponse({ status: "timestamps_updated" });
     }
-    
-    if (request.action === "updateOverlay") {
-        updateOverlay(request.text);
-        sendResponse({ status: "Overlay updated successfully" });
-        return true;
-    }
-    
     return true;
 });
 

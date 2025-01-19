@@ -160,5 +160,34 @@ def get_fact_checked_timestamps(video_uri: str) -> dict:
     return fact_check_results
 
 
+@app.route("/api/timestamps", methods=["GET"])
+def get_timestamps():
+    try:
+        timestamps = {
+            "00:00:01": [
+                {
+                    "statement": "Today I stand before the United Nations General Assembly.",
+                    "sources": [],
+                    "reason": "The statement is a generic statement and without context or a specific speaker, it cannot be verified.",
+                    "score": "0"
+                }
+            ],
+            "00:00:06": [
+                {
+                    "statement": "In less than two years, my administration has accomplished more than almost any administration in the history of our country.",
+                    "sources": [
+                        "https://www.whitehouse.gov/briefing-room/speeches-remarks/2023/01/19/remarks-by-president-biden-at-the-democratic-national-committee-winter-meeting/",
+                        "https://www.washingtonpost.com/politics/2023/01/20/biden-accomplishments-two-years/"
+                    ],
+                    "accuracy": "This is a subjective claim and difficult to quantify, but the Biden administration has passed significant legislation.",
+                    "score": "0.5"
+                }
+            ]
+        }
+        return jsonify(timestamps), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 if __name__ == "__main__":
     app.run(debug=True)
