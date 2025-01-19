@@ -31,25 +31,34 @@ function createOverlayContainer(player) {
         container = document.createElement('div');
         container.className = 'youtube-overlay-container';
         
+        // Create an inner container for the overlays
+        const innerContainer = document.createElement('div');
+        innerContainer.className = 'youtube-overlay-inner-container';
+        
         Object.assign(container.style, {
             position: 'absolute',
             left: '20px',
             top: '60px',
             bottom: '60px',
             width: '300px',
-            backgroundColor: 'rgba(0, 0, 0, 0.25)',
+            backgroundColor: 'rgba(0, 0, 0, 0.35)',
             borderRadius: '8px',
             zIndex: '1000000',
             overflowY: 'auto',
             overflowX: 'hidden',
             padding: '10px',
             display: 'flex',
+            flexDirection: 'column-reverse'
+        });
+
+        Object.assign(innerContainer.style, {
+            display: 'flex',
             flexDirection: 'column',
             gap: '10px',
-            // Custom scrollbar styling
-            scrollbarWidth: 'thin',
-            scrollbarColor: 'rgba(255, 255, 255, 0.5) rgba(0, 0, 0, 0)'
+            marginTop: 'auto'
         });
+
+        container.appendChild(innerContainer);
 
         // Add custom scrollbar styles for webkit browsers
         const style = document.createElement('style');
@@ -70,7 +79,7 @@ function createOverlayContainer(player) {
         player.appendChild(container);
     }
     
-    return container;
+    return container.querySelector('.youtube-overlay-inner-container');
 }
 
 function createOverlay(text) {
@@ -92,34 +101,30 @@ function createOverlay(text) {
         fontSize: '14px',
         fontFamily: 'YouTube Noto, Roboto, Arial, sans-serif',
         fontWeight: '400',
-        backgroundColor: 'rgba(0, 0, 0, 0.4)',
+        backgroundColor: 'rgba(0, 0, 0, 0.5)',
         padding: '12px',
         borderRadius: '4px',
-        width: 'calc(100% - 24px)', // Account for padding
+        width: 'calc(100% - 24px)',
         transition: 'background-color 0.2s',
         cursor: 'default'
     });
 
-    // Add hover effect
+    // Add hover effect with slightly higher opacity
     overlay.addEventListener('mouseenter', () => {
-        overlay.style.backgroundColor = 'rgba(255, 255, 255, 0.1)';
+        overlay.style.backgroundColor = 'rgba(255, 255, 255, 0.15)';
     });
     
     overlay.addEventListener('mouseleave', () => {
-        overlay.style.backgroundColor = 'rgba(0, 0, 0, 0.4)';
+        overlay.style.backgroundColor = 'rgba(0, 0, 0, 0.5)';
     });
     
-    // Add new overlay at the top
-    if (container.firstChild) {
-        container.insertBefore(overlay, container.firstChild);
-    } else {
-        container.appendChild(overlay);
-    }
-    
+    // Add new overlay at the bottom
+    container.appendChild(overlay);
     overlays.push(overlay);
     
-    // Scroll to top to show newest overlay
-    container.scrollTop = 0;
+    // Get the outer container for scrolling
+    const outerContainer = container.parentElement;
+    outerContainer.scrollTop = outerContainer.scrollHeight;
     
     return true;
 }
@@ -144,10 +149,10 @@ new MutationObserver(() => {
         const player = document.getElementById('movie_player') || document.querySelector('.html5-video-player');
         const container = document.querySelector('.youtube-overlay-container');
         if (!container && player) {
-            createOverlayContainer(player);
+            const innerContainer = createOverlayContainer(player);
             overlays.forEach(overlay => {
                 if (!overlay.parentElement) {
-                    container.appendChild(overlay);
+                    innerContainer.appendChild(overlay);
                 }
             });
         }
