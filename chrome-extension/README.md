@@ -1,29 +1,108 @@
-# Sample Chrome Extension
+# YouTube Fact Checker Chrome Extension
 
-This is a basic Chrome extension that demonstrates core extension functionality.
+The frontend component of the YouTube Fact Checker project. This Chrome extension integrates with YouTube's video player to provide real-time fact-checking notifications.
+
+## Components
+
+### 1. Popup (popup.html, popup.js)
+- User interface for controlling the fact checker
+- Displays current status and fact-check information
+- Handles communication with the backend server
+
+### 2. Content Script (content.js)
+- Integrates with YouTube's video player
+- Adds visual indicators (yellow ticks) to the progress bar
+- Manages overlay notifications
+- Tracks video playback time
+- Updates UI elements based on fact-check data
+
+### 3. Background Script (background.js)
+- Handles communication between popup and content script
+- Manages extension state
+- Processes messages between components
 
 ## Features
-- Popup interface with a custom button
-- Displays current time
-- Simple greeting functionality
 
-## Installation Instructions
+### Visual Indicators
+- Yellow tick marks on the video progress bar
+- Indicates timestamps where fact checks are available
+- Hover effects for better visibility
 
-1. Open Chrome and navigate to `chrome://extensions/`
-2. Enable "Developer mode" in the top right corner
-3. Click "Load unpacked" and select this extension's directory
-4. The extension icon should appear in your Chrome toolbar
+### Fact Check Overlay
+- Non-intrusive notifications
+- Appears when video reaches fact-check points
+- Auto-hides after displaying information
+- Positioned to avoid interfering with video controls
 
-## File Structure
-- `manifest.json`: Extension configuration
-- `popup.html`: The popup UI
-- `popup.js`: JavaScript for popup functionality
-- `images/`: Directory containing extension icons (you'll need to add these)
+### YouTube Integration
+- Works with YouTube's native video player
+- Responsive to video navigation
+- Updates when switching between videos
+- Maintains position during video resizing
 
-## Note
-You'll need to add icon files in the following sizes:
-- 16x16 pixels (icon16.png)
-- 48x48 pixels (icon48.png)
-- 128x128 pixels (icon128.png)
+## Installation for Development
 
-Place these icons in an `images` directory.
+1. Clone the repository
+2. Open Chrome and navigate to `chrome://extensions/`
+3. Enable "Developer mode"
+4. Click "Load unpacked"
+5. Select this directory
+
+## Configuration
+
+The extension requires a running backend server. By default, it connects to:
+```
+http://127.0.0.1:5000
+```
+
+To modify the backend URL, update the fetch calls in `popup.js`.
+
+## API Integration
+
+The extension expects fact-check data in this format:
+```json
+{
+    "timestamp_in_seconds": "Fact check message",
+    "30": "This claim needs context...",
+    "65": "This statement is incorrect...",
+    "120": "Additional information..."
+}
+```
+
+## Development Notes
+
+### Adding New Features
+1. Update manifest.json for new permissions
+2. Add functionality to content.js for YouTube integration
+3. Update popup.js for user interface changes
+4. Modify background.js for new message handling
+
+### Best Practices
+- Test on various YouTube layouts
+- Check for mobile compatibility
+- Ensure non-interference with YouTube's functionality
+- Follow Chrome extension security guidelines
+
+### Debug Tips
+- Use Chrome DevTools for popup debugging
+- Check console for content script messages
+- Monitor background script in extension details
+- Test with various video lengths and types
+
+## Testing
+
+1. Load the extension
+2. Open a YouTube video
+3. Click the extension icon
+4. Verify:
+   - Tick marks appear
+   - Notifications show at correct times
+   - UI updates when changing videos
+   - Overlay positioning is correct
+
+## Security
+
+- No sensitive data is stored
+- All communication is local or with specified backend
+- Content script runs only on YouTube domains
+- Follows Chrome's security best practices
