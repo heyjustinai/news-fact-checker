@@ -1,16 +1,27 @@
 import json
+import logging
 from flask import Flask, jsonify
 from flask_cors import CORS
-from google import genai
+import yt_dlp
+import os
+import time
+from typing import List, Dict
 from google import genai
 from google.genai import types
 import json
 import google.generativeai as generativeai
 from google.genai.types import (
+    FunctionDeclaration,
     GenerateContentConfig,
     GoogleSearch,
+    Part,
+    Retrieval,
+    SafetySetting,
     Tool,
+    VertexAISearch,
 )
+
+logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 CORS(app)
@@ -28,12 +39,44 @@ def demo_api():
 
 
 @app.route("/api/timestamps")
+def get_video_json_path(video_url):
+    return f"{os.getcwd()}/{video_url}.json"
+
+
+def download_youtube_video(video_url: str, save_path: str):
+    ydl_opts = {"outtmpl": save_path, "format": "mp4"}
+    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        ydl.download([video_url])
+    logger.info("Video downloaded successfully!")
+
+
+def upload_video(file_path: str, video_url: str):
+    logger.info("Uploading video file to Gemini API...")
+    file_upload = client.files.upload(path=file_path)
+
+    while file_upload.state == "PROCESSING":
+        logger.info("Waiting for video to be processed...")
+        time.sleep(3)
+        file_upload = client.files.get(name=file_upload.name)
+
+    if file_upload.state == "FAILED":
+        raise ValueError(f"File upload failed: {file_upload.state}")
+
+    logger.info(f"Video processing complete: {file_upload.uri}")
+    metadata = {
+        "uri": file_upload.uri,
+        "mime_type": file_upload.mime_type,
+    }
+    with open(get_video_json_path(video_url=video_url), "w") as f:
+        json.dump(metadata, f)
+
+    return metadata
 
 
 # Step 2: Extract claims from the video
 def extract_facts(video_uri: str) -> list[dict]:
     try:
-        print("Generating content with Gemini API...")
+        logger.info("Generating content with Gemini API...")
         SYSTEM_PROMPT = "When given a video and a query, call the relevant function only once with the video."
         USER_PROMPT = """
         Find all claims that are being made in this video. 
@@ -57,11 +100,11 @@ def extract_facts(video_uri: str) -> list[dict]:
                 response_mime_type="application/json",
             ),
         )
-        print(response.text)
+        logger.info(response.text)
         facts = json.loads(response.text)
         return facts
     except Exception as e:
-        print(f"Error during fact extraction: {e}")
+        logger.info(f"Error during fact extraction: {e}")
         raise e
 
 
@@ -94,37 +137,57 @@ def fact_check_claim(claim: str) -> dict:
         if last_closing_bracket_index != -1:
             text = text[: last_closing_bracket_index + 1]
         else:
-            print("Error: No closing bracket found in response.")
+            logger.info("Error: No closing bracket found in response.")
             return {"error": "Invalid response format", "details": response.text}
 
-        print(f"Cleaned response: {text}")
+        logger.info(f"Cleaned response: {text}")
         fact_check_result = json.loads(text)
         return fact_check_result
     except json.JSONDecodeError as e:
-        print(f"JSON parsing error: {e}")
-        print("Response causing issue:", response.text)
+        logger.info(f"JSON parsing error: {e}")
+        logger.info("Response causing issue:", response.text)
         return {"error": "JSON parsing failed", "details": str(e)}
 
     except Exception as e:
-        print(f"Error during fact-checking: {e}")
+        logger.info(f"Error during fact-checking: {e}")
         return {"error": "Fact-checking failed", "details": str(e)}
 
 
-def get_fact_checked_timestamps(video_uri: str, mime_type: str) -> dict:
-    facts = extract_facts(video_uri, mime_type)
+def get_fact_checked_timestamps(video_uri: str) -> dict:
+    video_json_path = get_video_json_path(video_url=video_uri)
+    if os.path.exists(video_json_path):
+        with open(video_json_path, "r") as f:
+            metadata = json.load(f)
+            video_uri = metadata.get("uri")
+            mime_type = metadata.get("mime_type")
+            if video_uri and mime_type:
+                print(f"Using cached video metadata: {metadata}")
+            else:
+                raise ValueError("Cached metadata is incomplete.")
+    else:
+        # Download video if necessary
+        video_path = video_json_path + ".mp4"
+        download_youtube_video(video_uri, video_path)
+
+        # Upload video and get URI and MIME type
+        metadata = upload_video(video_path, video_uri)
+        video_uri = metadata["uri"]
+        mime_type = metadata["mime_type"]
+
+    facts = extract_facts(video_uri)
 
     # Step 3: Fact-check each claim
-    print("Fact-checking claims...")
+    logger.info("Fact-checking claims...")
     fact_check_results = {}
-    print(facts)
+    logger.info(facts)
     for object in facts:
         timestamp = object["timestamp"]
         claim = object["claim"]
-        print(f"Fact-checking claim: {claim}")
+        logger.info(f"Fact-checking claim: {claim}")
         fact_check_results[timestamp] = fact_check_claim(claim)
 
     # Step 4: Display fact-check results
-    print(json.dumps(fact_check_results, indent=4))
+    logger.info(json.dumps(fact_check_results, indent=4))
     return fact_check_results
 
 
