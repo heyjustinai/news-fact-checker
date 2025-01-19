@@ -83,7 +83,7 @@ def extract_facts(video_uri: str) -> list[dict]:
         Then give me only the major claims that may be facts, but not opinions and that are of importance. 
         For each such statement in the video, generate a timestamp with claim for that statement that states the statement being made.
         
-        Additioally, for each claim, check the factual accuracy of the provided statement using web grounding. 
+        Additinally, for each claim, check the factual accuracy of the provided statement using web grounding. 
         Give me in the output the sources that you used to verify the statement, 
         a very crisp one sentence for why this is the case, and the score between 0 to 1, 
         where 1 means it's true and 0 means it's false. Give me the sources as list with links.
