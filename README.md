@@ -1,4 +1,4 @@
-# YouTube Fact Checker
+# Ground Truth AI Fact Checker
 
 A Chrome extension that provides real-time fact-checking for YouTube videos. This tool helps viewers verify information by displaying fact-check notifications at specific timestamps throughout the video.
 
